@@ -1,0 +1,18 @@
+
+CREATE DATABASE IF NOT EXISTS challenge;
+
+USE challenge;
+
+CREATE TABLE IF NOT EXISTS customer (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    title VARCHAR(50) NOT NULL,
+    firstname VARCHAR(255) NOT NULL,
+    lastname VARCHAR(255) NOT NULL,
+    status TINYINT NOT NULL default 0,
+    email VARCHAR(255) NOT NULL,
+    age TINYINT NOT NULL,
+    import_file VARCHAR(100) NOT NULL,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+)  ENGINE=INNODB;
+
+DESCRIBE customer;
