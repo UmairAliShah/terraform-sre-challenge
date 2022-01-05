@@ -62,7 +62,7 @@ raisin_app_ec2_sg_ingress       = [
       to_port     = 22
       protocol    = "tcp"
       description = "ssh port from specifi ip"
-      cidr_blocks = "111.119.187.20/32"
+      cidr_blocks = "111.119.187.43/32"
     }
   ]
 raisin_app_ec2_sg_egress       = [

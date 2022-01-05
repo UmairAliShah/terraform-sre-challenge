@@ -256,12 +256,12 @@ import boto3
 import pymysql
 import csv
 import os
-
+import urllib
 
 secrets_client = boto3.client("secretsmanager")
 
 
-# get RDS aurora secrets from Secret Manager
+# get rds secrets from secret manager
 def get_value(name, stage=None):
 
     try:
@@ -290,26 +290,25 @@ def lambda_handler(event, context):
         print(e)
         print("ERROR: Unexpected error: Could not connect to MySQL instance.")
         raise e
-    
-    # Get csv file from event
+
     bucket = event['Records'][0]['s3']['bucket']['name']
-    key = event['Records'][0]['s3']['object']['key'] 
-    download_path = '/tmp/{}'.format(key)
+    key = urllib.parse.unquote_plus(event['Records'][0]['s3']['object']['key'])
+    
+    response = s3.get_object(Bucket=bucket, Key=key)
+   
+    data = response['Body'].read().decode('utf-8').splitlines()
 
-    s3.download_file(bucket, key, download_path)
+    lines = csv.reader(data)
 
-    with open(download_path, encoding="utf8") as f:
-        csv_reader = csv.reader(f)
-        with db_connection.cursor() as cur:
-            # skip the first row 
-            next(csv_reader)
-            for customer in csv_reader:
-                try:
-                    print (str(customer))
-                    cur.execute('insert into customer (title, firstname, lastname, status, email, age) values("'+str(customer[0])+'", "'+str(customer[1])+'", "'+str(customer[2])+'", "'+str(customer[3])+'", "'+str(customer[4])+'", "'+str(customer[5])+'")')
-                    db_connection.commit()
-                except Exception as e:
-                    print(e)
+    headers = next(lines)
+    with db_connection.cursor() as cur:
+        for customer in lines:
+            try:
+                print (str(customer))
+                cur.execute('insert into customer (title, firstname, lastname, status, email, age) values("'+str(customer[0])+'", "'+str(customer[1])+'", "'+str(customer[2])+'", "'+str(customer[3])+'", "'+str(customer[4])+'", "'+str(customer[5])+'")')
+                db_connection.commit()
+            except Exception as e:
+                print(e)
 ```
 ### ZIP the lambda code and packages
 As you can see lambda code is already in zip format in 
