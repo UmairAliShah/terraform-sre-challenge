@@ -115,11 +115,12 @@ The AWS provider offers a flexible means of providing credentials for authentica
 
 I used exporting Environment variables
 so replace ***** with original credentials and export in the terminal of the root dir `sre-challenge-syed-ali`
-> export AWS_ACCESS_KEY_ID="*****"                                                                                       
+> export AWS_ACCESS_KEY_ID="*****"
+
 > export AWS_SECRET_ACCESS_KEY="******"
 
 ### Initialize Terraform working dir
-Run the following command in the workinf dir `sre-challenge-syed-ali`
+Run the following command in the working dir `sre-challenge-syed-ali`
 > terraform init
 
 It would install
@@ -133,7 +134,7 @@ It would install
 
 As we are deploying `stage` infra so first of all run this command to check either `stage` workspace exist or not
 >  terraform workspace list              # to see stage workspace
-   terraform workspace select stage      # to select stage workspace
+>   terraform workspace select stage      # to select stage workspace
 
 if workspace does not exist then create it
 > terraform workspace new stage            # create new workspace
