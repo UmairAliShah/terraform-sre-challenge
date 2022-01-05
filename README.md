@@ -134,11 +134,86 @@ It would install
 
 As we are deploying `stage` infra so first of all run this command to check either `stage` workspace exist or not
 >  terraform workspace list              # to see stage workspace
+
 >   terraform workspace select stage      # to select stage workspace
 
 if workspace does not exist then create it
 > terraform workspace new stage            # create new workspace
-        
+
+### Create EC2 key pair and white IP security group        
+As app ec2 would also be launched so to access it over ssh 
+* Create your own key pair
+* White your IP to access over ssh (as port ssh is not allowed for everyone) 
+
+After creating the ec2 key pair in `eu-west-1`, change the key pair name in `sre-challenge-syed-ali/environments/stage.tfvars`
+```bash
+raisin_app_instance_key_name        = "Key_name"
+```
+change the above value with the one you created.
+
+To white list your IP, get your public ip *What is my IP* and replace in `sre-challenge-syed-ali/environments/stage.tfvars`
+```bash
+raisin_app_ec2_sg_ingress       = [
+    {
+      from_port   = 80
+      to_port     = 80
+      protocol    = "tcp"
+      description = "http port fpor end user"
+      cidr_blocks = "0.0.0.0/0"
+    },
+    {
+      from_port   = 22
+      to_port     = 22
+      protocol    = "tcp"
+      description = "ssh port from specifi ip"
+      cidr_blocks = "your_public_ip/32"
+    }
+  ]
+```
+
+### Deploy terraform code to provision infrastructure
+validates the configuration files in a directory
+> terraform validate
+
+Execute the plan to see expected resources provisioning
+> terraform plan -var-file=environments/stage.tfvars
+
+Provision resources if everything looks fine
+> terraform apply -var-file=environments/stage.tfvars
+
+
+### Create DB and Table in RDS Aurora
+Before populating the data into RDS by processing csv file through Lambda, DB and Table should exist.
+As RDS is not publicy accessible so we have to make db and table by ssh into app ec2 instance, because its
+security group is whitelisted in RDS Aurora security group.
+
+**Steps**
+1. SSH into the server
+2. Run the following command to install mysql client
+   > sudo apt-get install mysql-client
+3. Create a file name as create_db_table.sql
+```bash
+CREATE DATABASE IF NOT EXISTS challenge;
+
+USE challenge;
+
+CREATE TABLE IF NOT EXISTS customer (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    title VARCHAR(50) NOT NULL,
+    firstname VARCHAR(255) NOT NULL,
+    lastname VARCHAR(255) NOT NULL,
+    status TINYINT NOT NULL default 0,
+    email VARCHAR(255) NOT NULL,
+    age TINYINT NOT NULL,
+    import_file VARCHAR(100) NOT NULL,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+)  ENGINE=INNODB;
+
+DESCRIBE customer;
+```
+4. Run the above script, before running the script get the rds_endpoint, username and password from rds secret manager
+   > mysql -h rds_endpoint -u username -p password < create_db_table.sql
+
 
 
 
