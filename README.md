@@ -77,6 +77,71 @@ whenever csv gets uploaded on S3 bucket, then the data would be used by the appl
     ├── variables.tf                # All terraform modules variables declaration with default values
     └── vpc.tf                      # VPC module with mutli az public and private subnets
 
+## Terraform setup to provision Infrastructure
+
+We would be provisioning infra for `stage` environment
+
+### Configure region where you want to provsion aws resources
+By default `ireland (eu-west-1)` region is configured.
+If you want to change the region then change the variable value in `sre-challenge-syed-ali/environments/stage.tfvars`
+```bash
+# default region
+region   = "eu-west-1" 
+```
+
+### Configure S3 backend backet to store remote state
+In `backend.tf` file
+```bash
+terraform {
+  backend "s3" {
+    bucket = "terraform-remote-state-bkt"
+    key    = "terraform/terraform.tfstate"
+    region = "eu-west-1"
+  }
+}
+```
+`terraform-remote-state-bkt` s3 bucket is already made in `eu-west-1` to store remote state of terraform.
+If you want change it, then create new bucket and change the variables values in the above snuppet. 
+Otherwise leave the configuration as it is.
+
+### Export AWS Credentials to run terraform code
+The AWS provider offers a flexible means of providing credentials for authentication. The following methods are supported, in this order, and explained below:
+
+* Static credentials
+* Environment variables
+* Shared credentials/configuration file
+* CodeBuild, ECS, and EKS Roles
+* EC2 Instance Metadata Service
+
+I used exporting Environment variables
+so replace ***** with original credentials and export in the terminal of the root dir `sre-challenge-syed-ali`
+> export AWS_ACCESS_KEY_ID="*****"                                                                                       
+> export AWS_SECRET_ACCESS_KEY="******"
+
+### Initialize Terraform working dir
+Run the following command in the workinf dir `sre-challenge-syed-ali`
+> terraform init
+
+It would install
+* providers
+* modules
+* terraform.tfstate file (s3 backend information)
+
+### Create Workspace for multi environment infrastructure
+* Workspace is used to create same resources for multiple environments
+* Code reuseability for all enviroments so no code repetition
+
+As we are deploying `stage` infra so first of all run this command to check either `stage` workspace exist or not
+>  terraform workspace list              # to see stage workspace
+   terraform workspace select stage      # to select stage workspace
+
+if workspace does not exist then create it
+> terraform workspace new stage            # create new workspace
+        
+
+
+
+
 
 
 #TODO how to zip code
