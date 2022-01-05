@@ -145,7 +145,8 @@ As app ec2 would also be launched so to access it over ssh
 * Create your own key pair
 * White your IP to access over ssh (as port ssh is not allowed for everyone) 
 
-After creating the ec2 key pair in `eu-west-1`, change the key pair name in `sre-challenge-syed-ali/environments/stage.tfvars`
+After creating the ec2 key pair in `eu-west-1`, change the key pair name in
+`sre-challenge-syed-ali/environments/stage.tfvars`
 ```bash
 raisin_app_instance_key_name        = "Key_name"
 ```
@@ -170,6 +171,7 @@ raisin_app_ec2_sg_ingress       = [
     }
   ]
 ```
+> **_NOTE:_** In case of whitelisting the static VPN IPs we have to add this rule only once
 
 ### Deploy terraform code to provision infrastructure
 validates the configuration files in a directory
@@ -211,12 +213,127 @@ CREATE TABLE IF NOT EXISTS customer (
 
 DESCRIBE customer;
 ```
-4. Run the above script, before running the script get the rds_endpoint, username and password from rds secret manager
+4. Before running the script get the `rds_endpoint, username, password` from **rds secret manager** then run the command
    > mysql -h rds_endpoint -u username -p password < create_db_table.sql
 
+#### Note 
+As we are running terraform locally so we can't make db and table on RDS as it is private can be accessed internally, But if we run the terraform on ec2 then we can use **terraform provisioner** in rds aurora module.
+```bash
+resource "null_resource" "db_setup" {
+  provisioner "local-exec" {
+    command = "psql -h ${module.cluster.cluster_endpoint} -p 3306 -U ${module.cluster.cluster_master_username}
+     -p module.cluster.cluster_master_password -f path-to-file-with-sql-commands
+  }
+}
+```
+
+### Generate CSV and upload it on S3
+Run the python script in `sre-challenge-syed-ali/helper-scripts/generate_data.py` to generate random data
+in csv format.
+
+> python3 generate_data.py
+
+It will generate a csv file with random entries.
+Now upload this file on `notify-lambda-csv-bkt-stage` s3 bucket, It would trigger lambda and lambda would 
+parse the csv file and insert data in RDS.
+
+Verify the db table and cloudwatch logs of lambda.
+
+### Destroy the infrastructure 
+If you want to destroy infrastructure
+
+First of all empty the `notify-lambda-csv-bkt-stage` bucket then run
+> terraform destroy -var-file=environments/stage.tfvars
 
 
 
+## Lambda Code 
+Lambda code to get secrets from paramter store and insert data into RDS by parsing csv file
+```bash
+import json
+import urllib.parse
+import boto3
+import pymysql
+import csv
+import os
+
+
+secrets_client = boto3.client("secretsmanager")
+
+
+# get RDS aurora secrets from Secret Manager
+def get_value(name, stage=None):
+
+    try:
+        kwargs = {'SecretId': name}
+        if stage is not None:
+            kwargs['VersionStage'] = stage
+        response = secrets_client.get_secret_value(**kwargs)
+        rds_credentials = json.loads(response['SecretString'])
+        return rds_credentials
+    except Exception as e:
+        print(e)
+
+
+s3 = boto3.client('s3')
+
+
+def lambda_handler(event, context):
+    
+    rds_credentials = get_value(os.environ['RDS_SECRET_MANAGER'])
+    
+    #Get Database Connection
+    db_connection = None
+    try:
+        db_connection = pymysql.connect(host=rds_credentials['rds_writer_endpoint'], user=rds_credentials['rds_username'], password=rds_credentials['rds_password'], db=rds_credentials['rds_db'])
+    except pymysql.MySQLError as e:
+        print(e)
+        print("ERROR: Unexpected error: Could not connect to MySQL instance.")
+        raise e
+    
+    # Get csv file from event
+    bucket = event['Records'][0]['s3']['bucket']['name']
+    key = event['Records'][0]['s3']['object']['key'] 
+    download_path = '/tmp/{}'.format(key)
+
+    s3.download_file(bucket, key, download_path)
+
+    with open(download_path, encoding="utf8") as f:
+        csv_reader = csv.reader(f)
+        with db_connection.cursor() as cur:
+            # skip the first row 
+            next(csv_reader)
+            for customer in csv_reader:
+                try:
+                    print (str(customer))
+                    cur.execute('insert into customer (title, firstname, lastname, status, email, age) values("'+str(customer[0])+'", "'+str(customer[1])+'", "'+str(customer[2])+'", "'+str(customer[3])+'", "'+str(customer[4])+'", "'+str(customer[5])+'")')
+                    db_connection.commit()
+                except Exception as e:
+                    print(e)
+```
+### ZIP the lambda code and packages
+As you can see lambda code is already in zip format in 
+`sre-challenge-syed-ali/modules/lambda/my-deployment-package.zip`
+It is deployed during lambda provsioning using terraform
+
+#### How to zip lamdba code and install its dependencies
+```bash
+mkdir lambda-source-code
+cd lambda-source-code
+touch lambda_function.py # Add the above code snippet in this file
+pip install --target ./package pymysql
+cd package
+zip -r ../my-deployment-package.zip .
+cd ..
+zip -g my-deployment-package.zip lambda_function.py
+```
+
+
+# Note
+* Terraform offical modules are used to provsion resources
+* Code is highly scalable 
+* Everything is dynamic, values are being referenced in dependant modules by exporting the 
+  values in outputs such `arns, ids, names, subnets ids` etc. 
 
 
 
