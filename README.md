@@ -335,6 +335,3 @@ zip -g my-deployment-package.zip lambda_function.py
 * Everything is dynamic, values are being referenced in dependant modules by exporting the 
   values in outputs such `arns, ids, names, subnets ids` etc. 
 
-
-
-#TODO how to zip code
